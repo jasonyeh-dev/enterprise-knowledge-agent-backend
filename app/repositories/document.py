@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session #for database communication
-from models.models import Document  
+from app.models.models import Document  
 
 def create_document_record(db: Session, filename: str, file_path: str, uploader: str):
     db_document = Document(

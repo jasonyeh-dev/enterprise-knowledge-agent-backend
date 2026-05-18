@@ -1,7 +1,7 @@
 #uvicorn main:app --reload
 import sys
 from fastapi import FastAPI
-from api import document  # mount router
+from app.api import document  # mount router
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger

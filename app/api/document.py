@@ -2,11 +2,11 @@ import os
 import shutil
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from sqlalchemy.orm import Session
-from core.database import  get_db
-import repositories.document as document_sql  
-from models.schemas import DocumentResponse, DeleteResponse
+from app.core.database import  get_db
+import app.repositories.document as document_sql  
+from app.models.schemas import DocumentResponse, DeleteResponse
 from typing import List
-
+from loguru import logger
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -51,6 +51,7 @@ def upload_file(
         return saved_record
     except Exception as e:
         db.rollback()
+        logger.exception("upload file error")
         raise HTTPException(status_code=500, detail=f"Upload Fail: DB connection Error ({str(e)})")
 
 @router.get("/GetAllDocuments", response_model=List[DocumentResponse])
