@@ -1,10 +1,11 @@
 import os
 import shutil
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import  get_db
 import app.repositories.document as document_sql  
 from app.models.schemas import DocumentResponse, DeleteResponse
+from app.services.document_service import process_pdf_and_embed
 from typing import List
 from loguru import logger
 
@@ -26,6 +27,7 @@ def upload_file(
 
     # Swagger generate upload buttom and input place
     # ... means required
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...), 
     uploader: str = Form(...),    
     db: Session = Depends(get_db)
@@ -48,6 +50,9 @@ def upload_file(
         # 3. return message 
         # automatically return the JSON format based on the response model
         #pydantic model
+
+        background_tasks.add_task(process_pdf_and_embed, saved_record.id, file_path, db)
+
         return saved_record
     except Exception as e:
         db.rollback()
