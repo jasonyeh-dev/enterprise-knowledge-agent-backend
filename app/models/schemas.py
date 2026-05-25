@@ -1,13 +1,16 @@
 from pydantic import BaseModel
 from datetime import datetime
 
-class DeleteDocument(BaseModel):
+class DeleteRequest(BaseModel):
+    document_ids: list[int]
+
+class DeletedDocument(BaseModel):
     id: int
+    filename: str
 
 class DeleteResponse(BaseModel):
     message: str
-    deleted_id: int
-    deleted_filename: str
+    deleted_documents: list[DeletedDocument]
     
 # decide which format you want to return to the FrontEnd
 class DocumentResponse(BaseModel):

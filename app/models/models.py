@@ -12,10 +12,8 @@ class Document(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     filename = Column(String, index=True, nullable=False)   
     file_path = Column(String, nullable=False)              
-    uploader = Column(String, nullable=False) 
-    # PENDING, PROCESSING, COMPLETED, FAILED              
-    status = Column(String, default="PENDING")
-    
+    uploader = Column(String, nullable=False)             
+    status = Column(String, default="PENDING")  # PENDING, COMPLETED, FAILED  
     # get the time from the database
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
 

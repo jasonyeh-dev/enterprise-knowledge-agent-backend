@@ -1,11 +1,9 @@
 import os
-import shutil
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import  get_db
-import app.repositories.document as document_sql  
-from app.models.schemas import DocumentResponse, DeleteResponse
-from app.services.document_service import process_pdf_and_embed
+from app.models.schemas import DocumentResponse, DeleteResponse, DeleteRequest
+from app.services.document_service import delete_document_workflow, list_document_workflow, get_document_status_process, upload_document_workflow
 from typing import List
 from loguru import logger
 
@@ -21,10 +19,8 @@ router = APIRouter(
 UPLOAD_DIR = os.environ.get("upload_DIR")
 
 
-
 @router.post("/upload", response_model=DocumentResponse)
-def upload_file(
-
+def upload_file_api(
     # Swagger generate upload buttom and input place
     # ... means required
     background_tasks: BackgroundTasks,
@@ -32,58 +28,31 @@ def upload_file(
     uploader: str = Form(...),    
     db: Session = Depends(get_db)
 ):
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
-
-    try:
-        # 1. CRUD part
-        saved_record = document_sql.create_document_record(
+    saved_record = upload_document_workflow(
         db=db, 
-        filename=file.filename, 
-        file_path=file_path, 
-        uploader=uploader
-        )
-
-        #2. Filesystem part
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        file=file, 
+        uploader=uploader,
+        background_tasks=background_tasks)
+    return saved_record
     
-        # 3. return message 
-        # automatically return the JSON format based on the response model
-        #pydantic model
+@router.get("/{doc_id}/status")
+def get_document_status_api(doc_id: int, db: Session = Depends(get_db)):
+    doc_status = get_document_status_process(db, doc_id)
+    return doc_status
 
-        background_tasks.add_task(process_pdf_and_embed, saved_record.id, file_path, db)
-
-        return saved_record
-    except Exception as e:
-        db.rollback()
-        logger.exception("upload file error")
-        raise HTTPException(status_code=500, detail=f"Upload Fail: DB connection Error ({str(e)})")
-
-@router.get("/GetAllDocuments", response_model=List[DocumentResponse])
-def read_all_documents(db: Session = Depends(get_db)):
-    
-    # 呼叫 CRUD 取得所有資料 (此時拿到的是 SQLAlchemy 的 DB Models 陣列)
-    db_documents = document_sql.list_all_document_record(db)
-    
+@router.get("/ListAllDocuments", response_model=List[DocumentResponse])
+def list_documents_api(db: Session = Depends(get_db)):
+    db_documents = list_document_workflow(db)
     # 直接回傳！FastAPI 會自動幫你把 DB Models 轉成乾淨的 JSON
     return db_documents
 
-@router.delete("/{document_id}", response_model=DeleteResponse)
-def delete_document_api(
-    document_id: int, 
+@router.delete("/list", response_model=DeleteResponse)
+def delete_documents_api(
+    request: DeleteRequest,
     db: Session = Depends(get_db)
 ):
-    
-    deleted_doc = document_sql.delete_document_record(db, document_id=document_id)
-    
-
-    if not deleted_doc:
-        raise HTTPException(status_code=404, detail="can't find the specific file")
-        
-
-    #return dict then transfer to JSON format
+    DeletedDoc = delete_document_workflow(db, document_list = request.document_ids)  
     return {
         "message": "Delete successfully", 
-        "deleted_id": document_id,
-        "deleted_filename": deleted_doc.filename
+        "deleted_documents": DeletedDoc
     }
