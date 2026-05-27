@@ -30,12 +30,9 @@ class DocumentChunk(Base):
     
     # 主表刪掉、子表也會跟著被刪掉
     document_id = Column(Integer, ForeignKey('documents.id', ondelete='CASCADE'))
-    
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
-    
     # 💡 Gemini 768
     embedding = Column(Vector(768)) 
-    
     # 讓子表也能反向找到主文件
     document = relationship("Document", back_populates="chunks")

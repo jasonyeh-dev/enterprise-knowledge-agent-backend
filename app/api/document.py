@@ -2,8 +2,8 @@ import os
 from fastapi import APIRouter, UploadFile, File, Form, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import  get_db
-from app.models.schemas import DocumentResponse, DeleteResponse, DeleteRequest
-from app.services.document_service import delete_document_workflow, list_document_workflow, get_document_status_process, upload_document_workflow
+from app.models.schemas import DocumentResponse, DeleteResponse, DeleteRequest, AskRequest, AskResponse
+from app.services.document_service import delete_document_workflow, list_document_workflow, get_document_status_process, upload_document_workflow, qa_service
 from typing import List
 from loguru import logger
 
@@ -56,3 +56,10 @@ def delete_documents_api(
         "message": "Delete successfully", 
         "deleted_documents": DeletedDoc
     }
+
+
+@router.post("/ask", response_model=AskResponse)
+async def ask_knowledge_base_api(request: AskRequest, db: Session = Depends(get_db)):
+    answer_text = await qa_service.answer_question(db=db, user_query=request.question)
+    return answer_text
+        

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from typing import List
 
 class DeleteRequest(BaseModel):
     document_ids: list[int]
@@ -24,3 +25,15 @@ class DocumentResponse(BaseModel):
     class Config:
         #translate ORM object into JSON format
         from_attributes = True
+
+class SourceItem(BaseModel):
+    filename: str
+    chunk_content: str
+    similarity_score: float
+
+class AskRequest(BaseModel):
+    question: str
+
+class AskResponse(BaseModel):
+    answer: str
+    sources: List[SourceItem]

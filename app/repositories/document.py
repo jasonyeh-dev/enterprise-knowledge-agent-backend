@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session #for database communication
-from app.models.models import Document  
+from app.models.models import Document, DocumentChunk  
+from sqlalchemy import select
 
 def create_document(db: Session, filename: str, file_path: str, uploader: str):
     db_document = Document(
@@ -41,5 +42,27 @@ def delete_document_by_List_ids(db: Session, document_list:list[int]):
         }
         for doc in db_document
     ]
-    
     return BackupDeletedDocument
+
+def get_similar_chunks_with_score(db: Session, question_embedding: list[float], limit: int = 3, threshold: float = 0.5):
+
+        # 1. 定義計算距離的欄位，並幫它取個標籤名稱 "distance"
+        # 數值越接近 0，代表語意越一模一樣；數值越接近 1（或更大），代表兩句話的意思毫無關聯。
+        distance_col = DocumentChunk.embedding.cosine_distance(question_embedding).label("distance")
+
+        stmt = (
+            select(DocumentChunk, distance_col)
+            .order_by("distance")
+            .limit(limit)
+        )
+        
+        results = db.execute(stmt).all()
+
+        # 4. 實作防呆/精準度過濾：只保留距離小於 threshold 的結果
+        # results 的每一筆資料會是一個 Tuple: (DocumentChunk實體, distance分數)
+        filtered_chunks = []
+        for chunk, distance in results:
+            if distance < threshold:
+                filtered_chunks.append((chunk, distance))
+
+        return filtered_chunks
