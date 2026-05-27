@@ -44,7 +44,7 @@ def delete_document_by_List_ids(db: Session, document_list:list[int]):
     ]
     return BackupDeletedDocument
 
-def get_similar_chunks_with_score(db: Session, question_embedding: list[float], limit: int = 3, threshold: float = 0.5):
+def get_similar_chunks_with_score(db: Session, question_embedding: list[float], limit: int = 3, threshold: float = 0.4):
 
         # 1. 定義計算距離的欄位，並幫它取個標籤名稱 "distance"
         # 數值越接近 0，代表語意越一模一樣；數值越接近 1（或更大），代表兩句話的意思毫無關聯。
