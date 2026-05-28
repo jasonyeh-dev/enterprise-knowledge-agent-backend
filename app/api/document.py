@@ -20,19 +20,20 @@ router = APIRouter(
 UPLOAD_DIR = os.environ.get("upload_DIR")
 
 
-@router.post("/upload", response_model=DocumentResponse, dependencies=[Depends(get_current_user_id)])
+@router.post("/upload", response_model=DocumentResponse)
 def upload_file_api(
     # Swagger generate upload buttom and input place
     # ... means required
+    # JWT decipher to uploader
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...), 
-    uploader: str = Form(...),    
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    uploader_id: int = Depends(get_current_user_id)
 ):
     saved_record = upload_document_workflow(
         db=db, 
         file=file, 
-        uploader=uploader,
+        uploader_id=uploader_id,
         background_tasks=background_tasks)
     return saved_record
     

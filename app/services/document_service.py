@@ -139,24 +139,16 @@ def get_document_status_process( db: Session, doc_id: int):
     doc_status = document_sql.get_upload_status_by_id(db, doc_id)
     return doc_status
 
-def upload_document_workflow(db: Session, file:File, uploader:str, background_tasks:BackgroundTasks):
+def upload_document_workflow(db: Session, file:File, uploader_id:int, background_tasks:BackgroundTasks):
     try:
         file_path = os.path.join(UPLOAD_DIR, file.filename)
-
-        user = account_repo.get_by_account(db=db, account_name=uploader)
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"找不到上傳人員 '{uploader}'，無法建立文件"
-            )
 
         # 1. CRUD part
         saved_record = document_sql.create_document(
         db=db, 
         filename=file.filename, 
         file_path=file_path, 
-        uploader_id=user.id
+        uploader_id=uploader_id
         )
 
         db.commit()

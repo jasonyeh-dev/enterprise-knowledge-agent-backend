@@ -15,7 +15,10 @@ class AccountRepository:
         return db_account
     
     def get_by_account(self, db: Session, account_name:str):
-        user_account = db.query(User).filter(User.account == account_name).first()
+        user_account = db.query(User).filter(
+            User.account == account_name,
+            User.is_active== True
+        ).first()
         return user_account
 
 account_repo = AccountRepository()
