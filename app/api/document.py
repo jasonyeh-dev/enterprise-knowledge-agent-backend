@@ -6,6 +6,7 @@ from app.models.schemas import DocumentResponse, DeleteResponse, DeleteRequest, 
 from app.services.document_service import delete_document_workflow, list_document_workflow, get_document_status_process, upload_document_workflow, qa_service
 from typing import List
 from loguru import logger
+from app.api.deps import get_current_user_id
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -19,7 +20,7 @@ router = APIRouter(
 UPLOAD_DIR = os.environ.get("upload_DIR")
 
 
-@router.post("/upload", response_model=DocumentResponse)
+@router.post("/upload", response_model=DocumentResponse, dependencies=[Depends(get_current_user_id)])
 def upload_file_api(
     # Swagger generate upload buttom and input place
     # ... means required
@@ -40,13 +41,13 @@ def get_document_status_api(doc_id: int, db: Session = Depends(get_db)):
     doc_status = get_document_status_process(db, doc_id)
     return doc_status
 
-@router.get("/ListAllDocuments", response_model=List[DocumentResponse])
+@router.get("/ListAllDocuments", response_model=List[DocumentResponse], dependencies=[Depends(get_current_user_id)])
 def list_documents_api(db: Session = Depends(get_db)):
     db_documents = list_document_workflow(db)
     # 直接回傳！FastAPI 會自動幫你把 DB Models 轉成乾淨的 JSON
     return db_documents
 
-@router.delete("/list", response_model=DeleteResponse)
+@router.delete("/list", response_model=DeleteResponse, dependencies=[Depends(get_current_user_id)])
 def delete_documents_api(
     request: DeleteRequest,
     db: Session = Depends(get_db)

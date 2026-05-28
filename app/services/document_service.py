@@ -7,7 +7,8 @@ from app.models.models import Document, DocumentChunk
 from dotenv import load_dotenv
 from loguru import logger
 import app.repositories.document as document_sql  
-from fastapi import HTTPException
+from app.repositories.account import account_repo
+from fastapi import HTTPException, status
 import shutil
 from fastapi import File, BackgroundTasks
 from app.core.database import SessionLocal
@@ -142,12 +143,20 @@ def upload_document_workflow(db: Session, file:File, uploader:str, background_ta
     try:
         file_path = os.path.join(UPLOAD_DIR, file.filename)
 
+        user = account_repo.get_by_account(db=db, account_name=uploader)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"找不到上傳人員 '{uploader}'，無法建立文件"
+            )
+
         # 1. CRUD part
         saved_record = document_sql.create_document(
         db=db, 
         filename=file.filename, 
         file_path=file_path, 
-        uploader=uploader
+        uploader_id=user.id
         )
 
         db.commit()

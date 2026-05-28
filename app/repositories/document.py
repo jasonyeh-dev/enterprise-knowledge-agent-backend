@@ -1,12 +1,12 @@
-from sqlalchemy.orm import Session #for database communication
+from sqlalchemy.orm import Session, joinedload #for database communication
 from app.models.models import Document, DocumentChunk  
 from sqlalchemy import select
 
-def create_document(db: Session, filename: str, file_path: str, uploader: str):
+def create_document(db: Session, filename: str, file_path: str, uploader_id: int):
     db_document = Document(
         filename=filename,
         file_path=file_path,
-        uploader=uploader,
+        uploader_id=uploader_id,
         status="PENDING"  
     )
     
@@ -19,7 +19,13 @@ def get_upload_status_by_id(db: Session, doc_id:int):
     return {"status": doc.status} # 只會回傳 PENDING, COMPLETED 或 FAILED
 
 def list_documents(db: Session):
-    return db.query(Document).all()
+
+    return (
+            db.query(Document)
+            # 一次性把關聯的 uploader (Account) 預先載入
+            .options(joinedload(Document.uploader))
+            .all()
+        )
 
 def delete_document_by_List_ids(db: Session, document_list:list[int]):
 

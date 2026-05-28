@@ -1,7 +1,7 @@
 #uvicorn main:app --reload
 import sys
 from fastapi import FastAPI
-from app.api import document  # mount router
+from app.api import document,account  # mount router
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -33,6 +33,7 @@ app.add_middleware(
 
 # mount router
 app.include_router(document.router)
+app.include_router(account.router)
 
 @app.get("/")
 def read_root():
