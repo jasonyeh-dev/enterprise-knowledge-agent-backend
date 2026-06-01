@@ -7,11 +7,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.api.deps import get_current_user_id
 
 router = APIRouter(
-    prefix="/users",
+    prefix="/user",
     tags=["user related"]
 )
 
-@router.post("/create", response_model=AccountResponse,  dependencies=[Depends(get_current_user_id)])
+@router.post("", response_model=AccountResponse,  dependencies=[Depends(get_current_user_id)])
 async def create_user(
     request: AccountCreateRequest, 
     db: Session = Depends(get_db)
@@ -19,7 +19,7 @@ async def create_user(
     new_user = account_service.create_account(db=db, request=request)
     return new_user
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/auth", response_model=TokenResponse)
 def login_for_access_token(
     # FastAPI 內建的表單工具，會自動去解析前端傳來的 username 與 password 欄位
     form_data: OAuth2PasswordRequestForm = Depends(), 

@@ -5,7 +5,7 @@ import jwt
 from app.core.security import SECRET_KEY, ALGORITHM
 
 # 1. 宣告 OAuth2 鎖頭
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/user/auth")
 
 # 2. 建立共用的 Token 解密與驗證守衛
 def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
