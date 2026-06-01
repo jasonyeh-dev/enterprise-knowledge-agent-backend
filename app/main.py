@@ -18,10 +18,16 @@ logger.add(
 
 app = FastAPI(title="Enterprise Knowledge Agent API")
 
+origins = [
+    "http://localhost:5173",             
+    "https://speedy-rite-466709-f1.web.app", 
+    "https://speedy-rite-466709-f1.firebaseapp.com"
+]
+
 # 加入 CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=origins, 
     allow_credentials=False, 
     # GET, POST, PUT, DELETE, OPTIONS
     allow_methods=["*"], 
