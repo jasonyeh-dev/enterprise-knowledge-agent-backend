@@ -1,10 +1,14 @@
 #uvicorn main:app --reload
 import sys
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter, Depends
 from app.api import document,account  # mount router
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.core.security import limiter
+from slowapi.middleware import SlowAPIMiddleware
 
 logger.add(sys.stderr, level="INFO")
 
@@ -17,6 +21,7 @@ logger.add(
 )
 
 app = FastAPI(title="Enterprise Knowledge Agent API")
+
 
 origins = [
     "http://localhost:5173",             
@@ -34,9 +39,17 @@ app.add_middleware(
     allow_headers=["*"], 
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+api_router = APIRouter(prefix="/api")
 # mount router
-app.include_router(document.router)
-app.include_router(account.router)
+api_router.include_router(document.router)
+api_router.include_router(account.router)
+
+
+app.include_router(api_router)
 
 @app.get("/")
 def read_root():

@@ -3,12 +3,17 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 load_dotenv()
 
 SECRET_KEY = os.environ.get("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# rate limiter using IP
+limiter = Limiter(key_func=get_remote_address, default_limits=["30/minute"])
 
 def get_password_hash(password: str) -> str:
     # 1. bcrypt 要求輸入必須是 bytes 格式

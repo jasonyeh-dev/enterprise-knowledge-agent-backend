@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from app.core.database import  get_db
 from app.models.schemas import AccountCreateRequest, AccountResponse, TokenResponse
 from app.services.account_service import account_service
 from fastapi.security import OAuth2PasswordRequestForm
 from app.api.deps import get_current_user_id
+from app.core.security import limiter
 
 router = APIRouter(
     prefix="/user",
@@ -20,8 +21,10 @@ async def create_user(
     return new_user
 
 @router.post("/auth", response_model=TokenResponse)
+@limiter.limit("5/minute")
 def login_for_access_token(
     # FastAPI 內建的表單工具，會自動去解析前端傳來的 username 與 password 欄位
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(), 
     db: Session = Depends(get_db)
 ):

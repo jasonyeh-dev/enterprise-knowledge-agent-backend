@@ -16,3 +16,4 @@ PyMuPDF==1.27.2.3
 google-genai==2.6.0
 google-generativeai==0.8.6
 numpy==2.4.6
+slowapi==0.1.9
