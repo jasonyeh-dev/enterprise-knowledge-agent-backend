@@ -1,24 +1,16 @@
-import os
-from fastapi import APIRouter, UploadFile, File, Form, Depends, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Depends, BackgroundTasks, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.database import  get_db
-from app.models.schemas import DocumentResponse, DeleteResponse, DeleteRequest, AskRequest, AskResponse
-from app.services.document_service import delete_document_workflow, list_document_workflow, get_document_status_process, upload_document_workflow, qa_service
 from typing import List
-from loguru import logger
+from app.core.database import  get_db
+from app.models.schemas import DocumentResponse, DeleteResponse, DeleteRequest, AskRequest, AskResponse, DocumentStatusResponse
+from app.services.document_service import delete_document_workflow, list_document_workflow, get_document_status_process, upload_document_workflow, qa_service
 from app.api.deps import get_current_user_id
-
-from dotenv import load_dotenv
-load_dotenv()
+from app.core.context import current_user_account
 
 router = APIRouter(
     prefix="/documents",
     tags=["Documents (Knowledge base management)"]
 )
-
-
-UPLOAD_DIR = os.environ.get("upload_DIR")
-
 
 @router.post("", response_model=DocumentResponse)
 def upload_file_api(
@@ -35,17 +27,25 @@ def upload_file_api(
         file=file, 
         uploader_id=uploader_id,
         background_tasks=background_tasks)
+    
     return saved_record
     
-@router.get("/{doc_id}/status")
+@router.get("/{doc_id}/status", response_model=DocumentStatusResponse)
 def get_document_status_api(doc_id: int, db: Session = Depends(get_db)):
-    doc_status = get_document_status_process(db, doc_id)
-    return doc_status
+    doc_status_enum = get_document_status_process(db, doc_id)
+    if doc_status_enum is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f"Document with ID {doc_id} not found."
+        )
+    
+    # 把 Enum 裝進 Pydantic 盒子裡！
+    return DocumentStatusResponse(status=doc_status_enum)
+
 
 @router.get("", response_model=List[DocumentResponse], dependencies=[Depends(get_current_user_id)])
 def list_documents_api(db: Session = Depends(get_db)):
     db_documents = list_document_workflow(db)
-    # 直接回傳！FastAPI 會自動幫你把 DB Models 轉成乾淨的 JSON
     return db_documents
 
 @router.delete("", response_model=DeleteResponse, dependencies=[Depends(get_current_user_id)])
@@ -61,7 +61,7 @@ def delete_documents_api(
 
 
 @router.post("/query", response_model=AskResponse)
-async def ask_knowledge_base_api(request: AskRequest, db: Session = Depends(get_db)):
-    answer_text = await qa_service.answer_question(db=db, user_query=request.question)
+def ask_knowledge_base_api(request: AskRequest, db: Session = Depends(get_db)):
+    answer_text = qa_service.answer_question(db=db, user_query=request.question)
     return answer_text
         

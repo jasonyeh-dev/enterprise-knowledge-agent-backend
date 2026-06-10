@@ -1,25 +1,29 @@
 from sqlalchemy.orm import Session, joinedload #for database communication
-from app.models.models import Document, DocumentChunk  
+from app.models.models import Document, DocumentChunk 
+from app.models.schemas import  DocumentStatus
 from sqlalchemy import select
 
-def create_document(db: Session, filename: str, file_path: str, uploader_id: int):
+def create_document(db: Session, filename: str, file_path: str, uploader_id: int) -> Document:
     db_document = Document(
         filename=filename,
         file_path=file_path,
         uploader_id=uploader_id,
         status="PENDING"  
     )
-    
     db.add(db_document)
-    # return DB model
+
     return db_document
 
-def get_upload_status_by_id(db: Session, doc_id:int):
+def get_upload_status_by_id(db: Session, doc_id:int) -> DocumentStatus | None:
     doc = db.query(Document).filter(Document.id == doc_id).first()
-    return {"status": doc.status} # 只會回傳 PENDING, COMPLETED 或 FAILED
+    
+    if doc is None:
+        return None
+    
+    # 只會回傳 PENDING, COMPLETED 或 FAILED
+    return DocumentStatus(doc.status)
 
-def list_documents(db: Session):
-
+def list_documents(db: Session) -> list[Document]:
     return (
             db.query(Document)
             # 一次性把關聯的 uploader (Account) 預先載入

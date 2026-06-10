@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import List
+from enum import Enum
 
 class DeleteRequest(BaseModel):
     document_ids: list[int]
@@ -54,3 +55,11 @@ class AccountResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+class DocumentStatus(str, Enum):
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+class DocumentStatusResponse(BaseModel):
+    status: DocumentStatus

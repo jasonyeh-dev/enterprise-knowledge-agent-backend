@@ -19,7 +19,8 @@ class Document(Base):
     file_path = Column(String(1024), nullable=False)              
     uploader_id = Column(Integer, ForeignKey('users.id'), nullable=False)
 
-    uploader = relationship("User")
+    uploader = relationship("User", back_populates="documents")
+    
     # Only PENDING, COMPLETED, FAILED
     status = Column(Enum(DocumentStatus), default=DocumentStatus.PENDING, nullable=False) 
     # get the time from the database
@@ -53,5 +54,6 @@ class User(Base):
     account = Column(String(50), index=True, nullable=False, unique=True)   
     password_hash = Column(String(255), nullable=False)              
     is_active = Column(Boolean, nullable=False, default=True)   
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    document = relationship("Document")
+    documents = relationship("Document", back_populates="uploader")

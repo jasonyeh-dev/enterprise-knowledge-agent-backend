@@ -7,11 +7,11 @@ from app.models.models import Document, DocumentChunk
 from dotenv import load_dotenv
 from loguru import logger
 import app.repositories.document as document_sql  
-from app.repositories.account import account_repo
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 import shutil
 from fastapi import File, BackgroundTasks
 from app.core.database import SessionLocal
+from app.models.schemas import DocumentStatus
 
 load_dotenv()
 UPLOAD_DIR = os.environ.get("upload_DIR")
@@ -56,7 +56,6 @@ def embed_pdf_background_workflow(doc_id: int, file_path: str):
             
         # 2. (Chunking)
         chunks = get_overlapping_chunks(full_text=full_text)
-        
         
         
         # 3. Call Gemini Embedding API 並存入資料庫
@@ -110,9 +109,10 @@ def delete_document_workflow(db: Session, document_list: list[int]):
                 if os.path.exists(filepath):
                     os.remove(filepath)
             except Exception as e:
-                logger.error(f"孤兒檔案產生，無法刪除實體檔案: {filepath}, 錯誤: {e}")
+                logger.error(f"無法刪除實體檔案: {filepath}, 錯誤: {e}")
 
         #return dict then transfer to JSON format
+        logger.info("Delete file")
         return [
                 {
                     "id":doc["id"],
@@ -135,7 +135,7 @@ def list_document_workflow(db: Session):
 
     return db_documents
 
-def get_document_status_process( db: Session, doc_id: int):
+def get_document_status_process( db: Session, doc_id: int) -> DocumentStatus | None:
     doc_status = document_sql.get_upload_status_by_id(db, doc_id)
     return doc_status
 
@@ -157,6 +157,8 @@ def upload_document_workflow(db: Session, file:File, uploader_id:int, background
         #2. Filesystem part
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
+        logger.info("Upload Successfully")
 
         # 3. return message 
         # automatically return the JSON format based on the response model
@@ -186,7 +188,7 @@ class QAService:
         self.embedding_model_name = 'models/gemini-embedding-001'
         self.chat_model = genai.GenerativeModel('gemini-3.1-flash-lite')
 
-    async def answer_question(self, db: Session, user_query: str) -> str:
+    def answer_question(self, db: Session, user_query: str) -> str:
         # ==========================================
         # Step 1. 將自然語言轉換成向量 (Embedding)
         # ==========================================
