@@ -21,4 +21,4 @@ EXPOSE 8080
 
 # 8. 啟動 FastAPI 伺服器
 # 💡 注意：一定要綁定 0.0.0.0，不然外部網路進不來
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080","--forwarded-allow-ips", "*" ,"--proxy-headers"]
