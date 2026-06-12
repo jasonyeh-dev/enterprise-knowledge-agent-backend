@@ -1,10 +1,8 @@
 import fitz  # PyMuPDF
 import google.generativeai as genai
-import os
 from google.generativeai.types.text_types import EmbeddingDict
 from sqlalchemy.orm import Session
 from app.models.models import Document, DocumentChunk
-from dotenv import load_dotenv
 from loguru import logger
 import app.repositories.document as document_sql  
 from fastapi import HTTPException
@@ -12,19 +10,18 @@ import shutil
 from fastapi import File, BackgroundTasks
 from app.core.database import SessionLocal
 from app.models.schemas import DocumentStatus
+from app.core.config import settings
+import os
 
-load_dotenv()
-UPLOAD_DIR = os.environ.get("upload_DIR")
-
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
 def Gemini_Embedding_task(Content:str, Task:str):
 
     result: EmbeddingDict = genai.embed_content(
-        model="models/gemini-embedding-001",
+        model=settings.EMBEDDING_MODEL_NAME,
         content=Content,
         task_type=Task, # 告訴 Gemini 這是要被存起來檢索的資料
-        output_dimensionality=768
+        output_dimensionality=settings.OUTPUT_DEMENSIONALITY
         )
     embedding_vector = result['embedding']
     return embedding_vector
@@ -56,7 +53,6 @@ def embed_pdf_background_workflow(doc_id: int, file_path: str):
             
         # 2. (Chunking)
         chunks = get_overlapping_chunks(full_text=full_text)
-        
         
         # 3. Call Gemini Embedding API 並存入資料庫
         for index, chunk_text in enumerate(chunks):
@@ -141,7 +137,7 @@ def get_document_status_process( db: Session, doc_id: int) -> DocumentStatus | N
 
 def upload_document_workflow(db: Session, file:File, uploader_id:int, background_tasks:BackgroundTasks):
     try:
-        file_path = os.path.join(UPLOAD_DIR, file.filename)
+        file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
 
         # 1. CRUD part
         saved_record = document_sql.create_document(
@@ -181,12 +177,8 @@ def upload_document_workflow(db: Session, file:File, uploader_id:int, background
 
 class QAService:
     def __init__(self):
-        # 確保你的環境變數或設定檔已載入 API KEY
-        # genai.configure(api_key="YOUR_API_KEY")
-        
-        # 宣告我們剛剛討論過的最佳模型配置
-        self.embedding_model_name = 'models/gemini-embedding-001'
-        self.chat_model = genai.GenerativeModel('gemini-3.1-flash-lite')
+        self.embedding_model_name = settings.EMBEDDING_MODEL_NAME
+        self.chat_model = genai.GenerativeModel(settings.CHAT_MODEL_NAME)
 
     def answer_question(self, db: Session, user_query: str) -> str:
         # ==========================================
@@ -196,7 +188,7 @@ class QAService:
             model=self.embedding_model_name,
             content=user_query,
             task_type="retrieval_query", # 標示這是一個用來檢索的查詢
-            output_dimensionality=768
+            output_dimensionality=settings.OUTPUT_DEMENSIONALITY
         )
         query_vector = embed_result['embedding']
 
@@ -260,5 +252,5 @@ class QAService:
                 "sources": sources_metadata
             }
 
-# 實例化供 API 注入使用
+
 qa_service = QAService()    

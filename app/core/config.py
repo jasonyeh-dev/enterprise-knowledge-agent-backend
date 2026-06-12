@@ -9,8 +9,11 @@ class Settings(BaseSettings):
     #DB
     DATABASE_URL: str
     
-    #API
+    #Gemini
     GEMINI_API_KEY: str
+    EMBEDDING_MODEL_NAME: str = "models/gemini-embedding-001"
+    CHAT_MODEL_NAME: str = "gemini-3.1-flash-lite"
+    OUTPUT_DEMENSIONALITY: int = 768
     
     #others
     UPLOAD_DIR: str = "upload"
