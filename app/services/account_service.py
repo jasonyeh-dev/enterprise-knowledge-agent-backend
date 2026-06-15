@@ -1,25 +1,29 @@
-from sqlalchemy.orm import Session
+import anyio
 from fastapi import HTTPException, status
-from app.repositories.account import account_repo
-from app.core.security import get_password_hash, verify_password, create_access_token
-from app.models.schemas import AccountCreateRequest
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import (create_access_token, get_password_hash,
+                               verify_password)
+from app.models.schemas import AccountCreateRequest
+from app.repositories.account_repository import account_repo
 
 
 class AccountService:
-    def create_account(self, db: Session, request: AccountCreateRequest):
+    async def create_account(self, db: AsyncSession, request: AccountCreateRequest):
         
         logger.info(f"Creating new account {request.account}...")
         
         # check the account in DB
-        existing_user = account_repo.get_by_account(db, request.account)
+        existing_user =await account_repo.get_by_account(db, request.account)
         if existing_user:
             logger.warning(f"Create Failed, the account is occupied ({request.account})")
             raise HTTPException(status_code=400, detail="This account is existing")
 
-        hashed_pw = get_password_hash(request.password)
+        #CPU bound
+        hashed_pw = await anyio.to_thread.run_sync(get_password_hash, request.password)
 
-        new_account = account_repo.create(
+        new_account =await account_repo.create(
             db=db, 
             account=request.account, 
             password_hash=hashed_pw
@@ -28,14 +32,19 @@ class AccountService:
         
         return new_account
     
-    def authenticate_user(self, db: Session, account_name: str, plain_password: str) -> str:
+    async def authenticate_user(self, db: AsyncSession, account_name: str, plain_password: str) -> str:
         # 1. Query the user from DB
         
         logger.info(f"Receieve login request, Account={account_name}")
 
-        user = account_repo.get_by_account(db, account_name=account_name)
+        user =await account_repo.get_by_account(db, account_name=account_name)
         
-        if not user or not verify_password(plain_password, user.password_hash):
+        #CPU bound
+        is_password_correct = await anyio.to_thread.run_sync(
+            verify_password, plain_password, user.password_hash
+        )
+        
+        if not user or not is_password_correct:
             logger.warning(f"Login Fail, Wrong account or password (Account={account_name})")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

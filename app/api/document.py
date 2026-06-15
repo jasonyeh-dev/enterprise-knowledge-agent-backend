@@ -1,11 +1,15 @@
-from fastapi import APIRouter, UploadFile, File, Depends, BackgroundTasks, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List
-from app.core.database import  get_db
-from app.models.schemas import DocumentResponse, DeleteResponse, DeleteRequest, AskRequest, AskResponse, DocumentStatusResponse
-from app.services.document_service import delete_document_workflow, list_document_workflow, get_document_status_process, upload_document_workflow, qa_service
-from app.api.deps import get_current_user_id
-from app.core.context import current_user_account
+
+from fastapi import (APIRouter, BackgroundTasks, Depends, File, HTTPException,
+                     UploadFile, status)
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import (get_current_user_id, get_db, get_document_service,
+                          get_rag_service)
+from app.models.schemas import (AskRequest, AskResponse, DeleteRequest,
+                                DeleteResponse, DocumentResponse,
+                                DocumentStatusResponse)
+from app.services.document_service import DocumentService, RagService
 
 router = APIRouter(
     prefix="/documents",
@@ -13,16 +17,17 @@ router = APIRouter(
 )
 
 @router.post("", response_model=DocumentResponse)
-def upload_file_api(
+async def upload_file_api(
     # Swagger generate upload buttom and input place
     # ... means required
     # JWT decipher to uploader
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...), 
-    db: Session = Depends(get_db),
-    uploader_id: int = Depends(get_current_user_id)
+    db: AsyncSession = Depends(get_db),
+    uploader_id: int = Depends(get_current_user_id),
+    document_service: DocumentService = Depends(get_document_service),
 ):
-    saved_record = upload_document_workflow(
+    saved_record = await document_service.upload_document_workflow(
         db=db, 
         file=file, 
         uploader_id=uploader_id,
@@ -31,37 +36,44 @@ def upload_file_api(
     return saved_record
     
 @router.get("/{doc_id}/status", response_model=DocumentStatusResponse)
-def get_document_status_api(doc_id: int, db: Session = Depends(get_db)):
-    doc_status_enum = get_document_status_process(db, doc_id)
+async def get_document_status_api(
+    doc_id: int, 
+    db: AsyncSession = Depends(get_db),
+    document_service: DocumentService = Depends(get_document_service),):
+
+    doc_status_enum = await document_service.get_document_status_process(db, doc_id)
     if doc_status_enum is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
             detail=f"Document with ID {doc_id} not found."
         )
     
-    # 把 Enum 裝進 Pydantic 盒子裡！
     return DocumentStatusResponse(status=doc_status_enum)
 
-
 @router.get("", response_model=List[DocumentResponse], dependencies=[Depends(get_current_user_id)])
-def list_documents_api(db: Session = Depends(get_db)):
-    db_documents = list_document_workflow(db)
-    return db_documents
+async def list_documents_api(
+    db: AsyncSession = Depends(get_db),
+    document_service: DocumentService = Depends(get_document_service),):
+
+    db_documents =await document_service.list_document_workflow(db)
+    return [DocumentResponse.model_validate(doc) for doc in db_documents]
 
 @router.delete("", response_model=DeleteResponse, dependencies=[Depends(get_current_user_id)])
-def delete_documents_api(
+async def delete_documents_api(
     request: DeleteRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    document_service: DocumentService = Depends(get_document_service),
 ):
-    DeletedDoc = delete_document_workflow(db, document_list = request.document_ids)  
-    return {
-        "message": "Delete successfully", 
-        "deleted_documents": DeletedDoc
-    }
+    DeletedDoc = await document_service.delete_document_workflow(db, document_list = request.document_ids)  
 
+    return DeleteResponse(message="Delete successfully", deleted_documents=DeletedDoc)
 
 @router.post("/query", response_model=AskResponse)
-def ask_knowledge_base_api(request: AskRequest, db: Session = Depends(get_db)):
-    answer_text = qa_service.answer_question(db=db, user_query=request.question)
+async def ask_knowledge_base_api(
+    request: AskRequest, 
+    db: AsyncSession = Depends(get_db),
+    rag_service: RagService = Depends(get_rag_service),):
+
+    answer_text = await rag_service.answer_question(db=db, user_query=request.question)
     return answer_text
         

@@ -1,19 +1,24 @@
 #uvicorn main:app --reload --proxy-headers --forwarded-allow-ips="*"
 import sys
-from fastapi import FastAPI, APIRouter, Request
-from app.api import document,account  # mount router
-from fastapi.responses import RedirectResponse
+import time
+import uuid
+from contextlib import asynccontextmanager
+
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from google import genai
 from loguru import logger
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from app.core.security import limiter
 from slowapi.middleware import SlowAPIMiddleware
-from contextlib import asynccontextmanager
-import time
-import uuid
+
+from app.api import account, document  # mount router
 from app.core.config import settings
 from app.core.context import current_user_account
+from app.core.security import limiter
+from app.services.document_service import (ChunkingService, DocumentService,
+                                           EmbeddingService, RagService)
 
 
 def setup_logger()-> None:
@@ -82,8 +87,22 @@ setup_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("System startup...")
-    # ready to receive http request
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    embedding_service = EmbeddingService(client=client)  
+    chunking_service = ChunkingService()                  
+
+    app.state.document_service = DocumentService(
+        embedding_service=embedding_service,
+        chunking_service=chunking_service,
+    )
+    app.state.rag_service = RagService(
+        client=client,
+        embedding_service=embedding_service,
+    )
+
     yield
+    await client.aio.aclose()
+
     logger.info("System shutdown...")
 
 app = FastAPI(lifespan=lifespan, title="Enterprise Knowledge Agent API")
@@ -122,7 +141,7 @@ async def add_process_time_uuid(request: Request, call_next):
 
         response = await call_next(request)
         process_time = time.perf_counter() - start_time
-        logger.info(f"Request Completed | Status: {response.status_code} | Time-Consuming: {process_time :.2f}ms")
+        logger.info(f"Request Completed | Status: {response.status_code} | Time-Consuming: {process_time:.4f}s")
         
         # response.headers["X-Process-Time"] = str(process_time)
         response.headers["X-Request-ID"] = req_id
@@ -130,7 +149,7 @@ async def add_process_time_uuid(request: Request, call_next):
 
 
 
-api_router = APIRouter(prefix="/api")
+api_router = APIRouter(prefix=settings.API_V1_STR)
 # mount router
 api_router.include_router(document.router)
 api_router.include_router(account.router)

@@ -1,9 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Enum
-from sqlalchemy.sql import func
-from app.core.database import Base
-from pgvector.sqlalchemy import Vector
-from sqlalchemy.orm import relationship
 import enum
+
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import (Boolean, Column, DateTime, Enum, ForeignKey, Integer,
+                        String, Text)
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+
 
 class DocumentStatus(str, enum.Enum):
     PENDING = "PENDING"

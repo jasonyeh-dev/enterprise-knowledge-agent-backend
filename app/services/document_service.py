@@ -1,256 +1,249 @@
-import fitz  # PyMuPDF
-import google.generativeai as genai
-from google.generativeai.types.text_types import EmbeddingDict
-from sqlalchemy.orm import Session
-from app.models.models import Document, DocumentChunk
-from loguru import logger
-import app.repositories.document as document_sql  
-from fastapi import HTTPException
-import shutil
-from fastapi import File, BackgroundTasks
-from app.core.database import SessionLocal
-from app.models.schemas import DocumentStatus
-from app.core.config import settings
 import os
+import shutil
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
+import anyio
+import fitz  # PyMuPDF
+from fastapi import BackgroundTasks, HTTPException, UploadFile
+from google import genai
+from google.genai import types
+from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
-def Gemini_Embedding_task(Content:str, Task:str):
+from app.core.config import settings
+from app.core.database import AsyncSessionLocal
+from app.models.models import Document, DocumentChunk
+from app.models.schemas import (AskResponse, DocumentDeleteInfo,
+                                DocumentStatus, DocumentSummary, SourceItem)
+from app.repositories.document_repository import document_repo
 
-    result: EmbeddingDict = genai.embed_content(
-        model=settings.EMBEDDING_MODEL_NAME,
-        content=Content,
-        task_type=Task, # 告訴 Gemini 這是要被存起來檢索的資料
-        output_dimensionality=settings.OUTPUT_DEMENSIONALITY
-        )
-    embedding_vector = result['embedding']
-    return embedding_vector
 
-def get_overlapping_chunks(full_text: str, chunk_size: int =800, overlap: int = 100) -> list[str]:
-    step = chunk_size - overlap
-    chunks = []
-    
-    if step <= 0:
-        raise ValueError("Overlap 必須小於 Chunk Size")
+class ChunkingService:
+    def extract_pdf_text(self, file_path: str) -> str:
+        pdf = fitz.open(file_path)
+        return "".join(pdf.load_page(i).get_text() for i in range(len(pdf)))
 
-    for i in range(0, len(full_text), step):
-        chunk = full_text[i : i + chunk_size]
-        chunks.append(chunk)
-        
-    return chunks
-
-def embed_pdf_background_workflow(doc_id: int, file_path: str):
-    # 1. 製造一個全新的、專屬於這個背景任務的連線
-    db = SessionLocal()
-    """background session"""
-    try:
-        # 1. 讀取 PDF 文字 (PyMuPDF)
-        pdf_document = fitz.open(file_path)
-        full_text = ""
-        for page_num in range(len(pdf_document)):
-            page = pdf_document.load_page(page_num)
-            full_text += page.get_text()
-            
-        # 2. (Chunking)
-        chunks = get_overlapping_chunks(full_text=full_text)
-        
-        # 3. Call Gemini Embedding API 並存入資料庫
-        for index, chunk_text in enumerate(chunks):
-            if not chunk_text.strip():
-                continue
-                
-            embedding_vector = Gemini_Embedding_task(Content=chunk_text, Task="retrieval_document")
-
-            # 建立子表紀錄 (依靠 ORM 自動綁定)
-            new_chunk = DocumentChunk(
-                document_id=doc_id,
-                chunk_index=index,
-                content=chunk_text,
-                embedding=embedding_vector
-            )
-            db.add(new_chunk)
-            
-        # 4. 全部成功後，把主表的狀態更新為 COMPLETED
-        document = db.query(Document).filter(Document.id == doc_id).first()
-        if document:
-            document.status = "COMPLETED"
-            
-        db.commit()
-
-    except Exception as e:
-        # 如果中間爆炸了，狀態改成 FAILED
-        db.rollback()
-        document = db.query(Document).filter(Document.id == doc_id).first()
-        if document:
-            document.status = "FAILED"
-            db.commit()
-        logger.exception(f"向量化失敗: {e}")
-    
-    finally:
-        #2. 任務結束，自己關閉連線！
-        db.close()
-
-def delete_document_workflow(db: Session, document_list: list[int]):
-    try:
-        BackupDeletedDocument = document_sql.delete_document_by_List_ids(db, document_list=document_list)
-
-        if not BackupDeletedDocument:
-            raise HTTPException(status_code=404, detail="can't find the specific file")
-         
-        db.commit()
-
-        for file in BackupDeletedDocument:
-            try:
-                filepath = file["file_path"]
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-            except Exception as e:
-                logger.error(f"無法刪除實體檔案: {filepath}, 錯誤: {e}")
-
-        #return dict then transfer to JSON format
-        logger.info("Delete file")
+    def get_overlapping_chunks(
+        self, full_text: str, chunk_size: int, overlap: int
+    ) -> list[str]:
+        step = chunk_size - overlap
+        if step <= 0:
+            raise ValueError("Overlap 必須小於 Chunk Size")
         return [
-                {
-                    "id":doc["id"],
-                    "filename":doc["filename"]
-                }
-                for doc in BackupDeletedDocument
-            ]
-        
+            full_text[i: i + chunk_size]
+            for i in range(0, len(full_text), step)
+        ]
 
-    except HTTPException:
-        raise
-        
-    except Exception as e:
-        db.rollback() 
-        logger.error(f"資料庫刪除失敗: {e}")
-        raise HTTPException(status_code=500, detail="資料庫刪除失敗，檔案未更動")
-    
-def list_document_workflow(db: Session):
-    db_documents = document_sql.list_documents(db)
+class EmbeddingService:
+    def __init__(self, client: genai.Client):
+        self.client = client
+        self.embedding_model = settings.EMBEDDING_MODEL_NAME
 
-    return db_documents
+    async def embed_for_query(self, text: str) -> list[float]:
+        return await self._embed(text, task_type="RETRIEVAL_QUERY")
 
-def get_document_status_process( db: Session, doc_id: int) -> DocumentStatus | None:
-    doc_status = document_sql.get_upload_status_by_id(db, doc_id)
-    return doc_status
+    async def embed_for_storage(self, text: str) -> list[float]:
+        return await self._embed(text, task_type="RETRIEVAL_DOCUMENT")
 
-def upload_document_workflow(db: Session, file:File, uploader_id:int, background_tasks:BackgroundTasks):
-    try:
-        file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
-
-        # 1. CRUD part
-        saved_record = document_sql.create_document(
-        db=db, 
-        filename=file.filename, 
-        file_path=file_path, 
-        uploader_id=uploader_id
+    async def _embed(self, text: str, task_type: str) -> list[float]:
+        response = await self.client.aio.models.embed_content(
+            model=settings.EMBEDDING_MODEL_NAME,
+            contents=text,
+            config=types.EmbedContentConfig(
+                task_type=task_type,
+                output_dimensionality=settings.OUTPUT_DIMENSIONALITY,
+            )
         )
+        return response.embeddings[0].values
 
-        db.commit()
-        db.refresh(saved_record)
+class DocumentService:
+    def __init__(self, embedding_service: EmbeddingService, chunking_service:ChunkingService):
+        self.embedding_service = embedding_service
+        self.chunking_service = chunking_service
 
-        #2. Filesystem part
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        logger.info("Upload Successfully")
+    async def upload_document_workflow(self, db: AsyncSession, file:UploadFile, uploader_id:int, background_tasks:BackgroundTasks)->Document:
+        try:
+            file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
 
-        # 3. return message 
-        # automatically return the JSON format based on the response model
-        #pydantic model
-        background_tasks.add_task(embed_pdf_background_workflow, saved_record.id, file_path)
+            with open(file_path, "wb") as buffer:
+                await anyio.to_thread.run_sync(shutil.copyfileobj, file.file, buffer)
 
-        return saved_record
-    
-    except Exception as e:
-        db.rollback()
-
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as rm_error:
-                logger.error(f"無法清除孤兒檔案: {rm_error}")
-                
-        logger.exception("upload file error")
-        raise HTTPException(status_code=500, detail=f"Upload Fail: ({str(e)})")
-
-class QAService:
-    def __init__(self):
-        self.embedding_model_name = settings.EMBEDDING_MODEL_NAME
-        self.chat_model = genai.GenerativeModel(settings.CHAT_MODEL_NAME)
-
-    def answer_question(self, db: Session, user_query: str) -> str:
-        # ==========================================
-        # Step 1. 將自然語言轉換成向量 (Embedding)
-        # ==========================================
-        embed_result = genai.embed_content(
-            model=self.embedding_model_name,
-            content=user_query,
-            task_type="retrieval_query", # 標示這是一個用來檢索的查詢
-            output_dimensionality=settings.OUTPUT_DEMENSIONALITY
-        )
-        query_vector = embed_result['embedding']
-
-        # ==========================================
-        # Step 2. 向量檢索 (呼叫 Repository)
-        # ==========================================
-        similar_chunks = document_sql.get_similar_chunks_with_score(
+            saved_record = await document_repo.create_document(
             db=db, 
-            question_embedding=query_vector
-        )
-        
-        # 如果資料庫是空的，或者沒撈到資料的防呆
-        if not similar_chunks:
-            return {
-                "answer": "目前知識庫中尚無相關文件可以回答您的問題。",
-                "sources": []
-            }
-        
-        sources_metadata = []
-        context_texts = []
+            filename=file.filename, 
+            file_path=file_path, 
+            uploader_id=uploader_id
+            )
 
-        for chunk, distance in similar_chunks:
-            # 組合給 Gemini 看的文本
-            context_texts.append(chunk.content)
+            await db.commit()
             
-            sources_metadata.append({
-                "filename": chunk.document.filename, 
-                "chunk_content": chunk.content,
-                "similarity_score": round(1 - distance, 4) # 轉換成相似度百分比
-            })
+            #eager loading
+            completed_record = await document_repo.get_document_with_relations(
+                db=db, Doc_id=saved_record.id)
+            
+            logger.info(f"Upload Successfully, Doc_id={completed_record.id}, filename: {file.filename}")
+
+            background_tasks.add_task(self.embed_pdf_background_workflow, completed_record.id, file_path, file.filename)
+
+            return completed_record
+        
+        except Exception as e:
+            await db.rollback()
+
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception as rm_error:
+                    logger.error(f"Can't delete file: {rm_error}")
+                    
+            logger.exception(f"upload file error, Doc_id={completed_record.id}, filename: {file.filename}")
+            raise HTTPException(status_code=500, detail=f"Upload Fail: ({str(e)})")
+
+    async def get_document_status_process(self,  db: AsyncSession, doc_id: int) -> DocumentStatus | None:
+        doc_status =await document_repo.get_upload_status_by_id(db, doc_id)
+        logger.info(f"get document:{doc_id} status {doc_status.value}")
+        return doc_status
+
+    async def list_document_workflow(self, db: AsyncSession) -> list[Document]:
+        db_documents = await document_repo.list_documents(db)
+        logger.info("List all files")
+        return db_documents
+
+    async def embed_pdf_background_workflow(self, doc_id: int, file_path: str, filename: str) -> None:
+        logger.info(f"開始向量化, Doc_id={doc_id}, filename:{filename}")
+        async with AsyncSessionLocal() as bg_db:
+            try:
+                # 1. Read pdf
+                pdf_text = await anyio.to_thread.run_sync(
+                    self.chunking_service.extract_pdf_text, file_path
+                )
+                # 2. Chunk
+                chunks = self.chunking_service.get_overlapping_chunks(
+                    full_text=pdf_text, chunk_size=settings.CHUNK_SIZE, overlap=settings.CHUNK_OVERLAP)
+                
+                # 3. Call Gemini Embedding API 並存入資料庫
+                for index, chunk_text in enumerate(chunks):
+                    if not chunk_text.strip():
+                        continue
+                    vector = await self.embedding_service.embed_for_storage(chunk_text)
+
+                    # 建立子表紀錄 (依靠 ORM 自動綁定)
+                    new_chunk = DocumentChunk(
+                        document_id=doc_id,
+                        chunk_index=index,
+                        content=chunk_text,
+                        embedding=vector
+                    )
+                    bg_db.add(new_chunk)
+                    
+                # 4. 全部成功後，把主表的狀態更新為 COMPLETED
+                await document_repo.update_document_status(bg_db, doc_id, "COMPLETED")
+
+                logger.info(f"向量化完成 filename:{filename}, chunks={len(chunks)}")
+
+            except Exception as e:
+                # exception --> FAILED
+                await bg_db.rollback()
+                await document_repo.update_document_status(bg_db, doc_id, "FAILED")
+                logger.exception(f"vectorize fail, Doc_id={doc_id}, filename:{filename} {e}")
+            
+    async def delete_document_workflow(self, db: AsyncSession, document_list: list[int]) -> list[DocumentSummary]:
+        try:
+            db_documents = await document_repo.get_documents_by_ids(db, document_list=document_list)
+
+            if not db_documents:
+                raise HTTPException(status_code=404, detail="can't find the specific file")
+            
+            backup_deleted_documents = []
+
+            for doc in db_documents:
+                await db.delete(doc)
+                backup_obj = DocumentDeleteInfo.model_validate(doc)
+                backup_deleted_documents.append(backup_obj)
+
+            #----delete DB then delete local file-----------
+            await db.commit()
+
+            for file in backup_deleted_documents:
+                try:
+                    if os.path.exists(file.file_path):
+                        os.remove(file.file_path)
+                except Exception as e:
+                    logger.error(f"Can't delete file, {file.file_path}, Error: {e}")
 
 
-        # 將撈出來的文本片段組合成一個大字串
-        context_text = "\n---\n".join(context_texts)
+            deleted_filenames = ", ".join([file.filename for file in backup_deleted_documents])
+            logger.info(f"Delete DB and file successfully. Files: {deleted_filenames}")
 
-        # ==========================================
-        # Step 3. 組合 Prompt 並交給 LLM 總結
-        # ==========================================
-        # 這是防幻覺 (Hallucination) 最關鍵的 System Prompt
+            return [DocumentSummary.model_validate(doc) for doc in backup_deleted_documents]
+
+        except HTTPException:
+            raise
+            
+        except Exception as e:
+            await db.rollback() 
+            logger.error(f"Database delete fail: {e}")
+            raise HTTPException(status_code=500, detail="Database delete fail, file not change")
+        
+class RagService:
+
+    def __init__(self, client: genai.Client, embedding_service: EmbeddingService):
+        self.client = client
+        self.embedding_service = embedding_service
+        self.chat_model = settings.CHAT_MODEL_NAME
+
+    def _build_context(self, chunks: list[tuple[DocumentChunk, float]]) -> tuple[str, list[SourceItem]]:
+        sources = []
+        texts = []
+        for chunk, distance in chunks:
+            texts.append(chunk.content)
+            sources.append(SourceItem(
+                filename=chunk.document.filename, #lazy loading async should be eager loading
+                chunk_content=chunk.content,
+                similarity_score=round(1 - distance, 4)
+            ))
+        return "\n---\n".join(texts), sources
+    
+    async def _generate_answer(self, user_query: str, context: str) -> str:
         prompt = f"""
         你是一位專業且嚴謹的企業內部知識庫助理。
         請「僅能」根據下方【參考資料】提供的內容，來回答使用者的【問題】。
-        
-        回答規則：
-        1. 語氣請保持專業、友善。
-        2. 如果【參考資料】中沒有提到能回答該問題的資訊，請誠實回答：「很抱歉，目前的知識庫中沒有關於此問題的規定。」，絕對不可以自己捏造答案。
-        3. 回答請盡量精簡扼要，重點可以使用條列式。
 
         【參考資料】:
-        {context_text}
+        {context}
 
         【問題】:
         {user_query}
         """
+        response = await self.client.aio.models.generate_content(
+            model=self.chat_model,
+            contents=prompt,
+        )
+        return response.text
 
-        # 呼叫 Gemini產生解答
-        response = self.chat_model.generate_content(prompt)
-        
-        return {
-                "answer": response.text,
-                "sources": sources_metadata
-            }
+    async def answer_question(
+        self, db: AsyncSession, user_query: str) -> AskResponse:
 
+        logger.info(f"開始處理問題: {user_query}") 
 
-qa_service = QAService()    
+        query_vector = await self.embedding_service.embed_for_query(user_query)
+
+        similar_chunks = await document_repo.get_similar_chunks_with_score(
+            db=db,
+            question_embedding=query_vector,
+            limit= settings.RETRIEVAL_TOP_K, 
+            threshold= settings.RETRIEVAL_SCORE_THRESHOLD,
+        )
+
+        if not similar_chunks:
+            logger.warning("找不到相關 chunks，回傳預設回答")
+            return AskResponse(
+                answer="目前知識庫中尚無相關文件可以回答您的問題。",
+                sources=[]
+            )
+
+        context, sources = self._build_context(similar_chunks)
+        answer = await self._generate_answer(user_query, context)
+
+        logger.info(f"成功回答，引用 {len(sources)} 個來源")
+        return AskResponse(answer=answer, sources=sources)
+    
