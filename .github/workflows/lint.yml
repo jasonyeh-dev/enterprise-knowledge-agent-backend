@@ -1,0 +1,32 @@
+name: Code Quality Check (Lint)
+
+# Trigger when push to main branch
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest 
+    
+    steps:
+    # 1. get source code
+    - uses: actions/checkout@v4
+    
+    # 2. install Python 
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11" 
+        
+    # 3. install Lint tool-Ruff
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff
+        
+    # 4. excute checker
+    - name: Run Ruff Linter
+      run: |
+        # check the code
+        ruff check .
