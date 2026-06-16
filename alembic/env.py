@@ -7,7 +7,7 @@ from app.core.config import settings
 # 2. get Base & Model
 from app.core.database import Base
 # model is essential
-from app.models.models import Document, DocumentChunk, User
+from app.models.models import Document, DocumentChunk, User # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

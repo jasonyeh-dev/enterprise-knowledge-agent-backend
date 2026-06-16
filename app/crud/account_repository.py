@@ -19,7 +19,7 @@ class AccountRepository:
     async def get_by_account(self, db: AsyncSession, account_name:str) -> User | None:
         stmt = select(User).filter(
             User.account == account_name,
-            User.is_active == True
+            User.is_active.is_(True)
         )
         result = await db.execute(stmt)
         user_account = result.scalars().first()
