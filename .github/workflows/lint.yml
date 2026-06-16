@@ -3,7 +3,7 @@ name: Code Quality Check (Lint)
 # Trigger when push to main branch
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 jobs:
   build:
