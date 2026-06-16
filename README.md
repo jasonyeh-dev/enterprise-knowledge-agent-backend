@@ -4,6 +4,8 @@
 支援 PDF 上傳、語意向量檢索與 AI 生成回答。
 
 ## 技術架構
+
+```text
 Client
    │
    ▼
@@ -55,9 +57,11 @@ Client
       Gemini API
    • Embedding
    • Answer Generation
+```
 
 ## 專案結構
 
+```text
 app/
 ├── main.py             # 應用程式進入點：初始化 FastAPI 實例、掛載全域 Lifespan、SlowAPI限流
 ├── core/               # 核心基礎：全域環境變數、JWT 簽發、Logger 配置、上下文管理、資料庫引擎
@@ -67,6 +71,7 @@ app/
 └── models/             # 資料模型定義
     ├── models.py       # SQLAlchemy ORM 模型：對應 PostgreSQL 實體資料表、定義欄位、關聯屬性與向量欄位
     └── schemas.py      # Pydantic 驗證結構：定義 API 交互的數據契約
+```
 
 ## 主要功能
 
