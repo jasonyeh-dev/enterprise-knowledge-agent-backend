@@ -1,6 +1,6 @@
 # 企業內部知識庫 RAG 系統
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue.svg?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11-blue.svg?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.116.1-009688.svg?logo=fastapi&logoColor=white)
 ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0+-D71F00.svg?logo=sqlalchemy&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791.svg?logo=postgresql&logoColor=white)
