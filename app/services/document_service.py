@@ -14,7 +14,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.models import Document, DocumentChunk
 from app.models.schemas import (AskResponse, DocumentDeleteInfo,
                                 DocumentStatus, DocumentSummary, SourceItem)
-from app.repositories.document_repository import document_repo
+from app.crud.document_repository import document_repo
 
 
 class ChunkingService:

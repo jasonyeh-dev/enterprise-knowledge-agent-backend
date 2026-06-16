@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import (create_access_token, get_password_hash,
                                verify_password)
 from app.models.schemas import AccountCreateRequest
-from app.repositories.account_repository import account_repo
+from app.crud.account_repository import account_repo
 
 
 class AccountService:
