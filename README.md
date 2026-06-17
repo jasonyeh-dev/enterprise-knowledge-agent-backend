@@ -80,37 +80,51 @@ app/
     └── schemas.py      # Pydantic 驗證結構：定義 API 交互的數據契約
 ```
 
+
 ## 主要功能
 
 - PDF 上傳與非同步 embedding 處理（BackgroundTasks）
 - 語意向量搜尋（pgvector cosine distance）
 - RAG 問答（Gemini API）
 - JWT 身份驗證
-- 結構化 Log（loguru + ContextVar，每筆 log 自動帶入 request_id / user）
+- 結構化 Log（loguru + ContextVar，搭配 async dependency 確保 context 正確傳遞，每筆 log 自動帶入 request_id / client_ip / user_account）
 - IP 限流（SlowAPI，防止惡意請求） 
 
-## 本地啟動前準備
+## 🛠️ 先決條件 (Prerequisites)
+在開始之前，請確保您的開發環境已安裝以下工具：
+* [Git](https://git-scm.com/)
+* [Docker](https://www.docker.com/) & Docker Compose
 
-### 🔑 準備 Gemini API Key
+## 🔑 準備 Gemini API Key
 
-本專案使用 Google Gemini 作為LLM 及 Embedding 模型。在啟動專案前，請先準備好您的 API Key：
+本專案使用 Google Gemini 作為 LLM 及 Embedding 模型。啟動前請先備妥 API Key：
 
 1. 前往 [Google AI Studio](https://aistudio.google.com/app/apikey) 建立免費的 API Key。
 2. 如果您不熟悉申請流程，可以參考這篇[詳細圖文教學](https://kuwaai.org/zh-Hant/blog/apply-gemini)。
-3. 申請完成後，請將金鑰填入 `.env.example`裡面的 `GEMINI_API_KEY` 欄位。
+3. 取得金鑰後，稍後將其填入專案的 `.env` 檔案中。
 
-## 本地啟動
+## 🚀 本地快速啟動
 
-```text
+```bash
 git clone https://github.com/jasonyeh-dev/enterprise-knowledge-agent-backend.git
 cd enterprise-knowledge-agent-backend
 cp .env.example .env    # 填入 Gemini API Key 等設定
-docker-compose up -d    # 自動啟動 DB、執行 migration、啟動 API
-預設管理者帳號&密碼:demo1234
+docker compose up -d    # 自動啟動 DB、執行 migration、啟動後端服務
 ```
 
-# API 文件
-http://localhost:8080/docs
+預設管理者帳號／密碼：`demo1234` / `demo1234`
 
 
 
+## 📖 API 文件
+
+服務啟動完成後，請打開瀏覽器前往以下網址查看並測試 API：
+👉 http://localhost:8080/docs
+
+
+## 🧩 技術挑戰
+
+開發過程中處理過的幾個關鍵問題：
+- **ContextVar 跨 async/sync context 遺失**：FastAPI 同步 route handler 會被丟進
+  threadpool 執行，導致 dependency 裡 set 的 ContextVar 在 service layer 讀不到，
+  改為 async dependency 確保值寫入正確的 context
