@@ -64,6 +64,7 @@ class DocumentService:
         try:
             file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
 
+            #will delete in the next version
             with open(file_path, "wb") as buffer:
                 await anyio.to_thread.run_sync(shutil.copyfileobj, file.file, buffer)
 
@@ -89,6 +90,7 @@ class DocumentService:
         except Exception as e:
             await db.rollback()
 
+            #will delete in the next version
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
@@ -163,6 +165,7 @@ class DocumentService:
             #----delete DB then delete local file-----------
             await db.commit()
 
+            #will delete in the next version
             for file in backup_deleted_documents:
                 try:
                     if os.path.exists(file.file_path):

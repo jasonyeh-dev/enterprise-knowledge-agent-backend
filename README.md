@@ -88,3 +88,29 @@ app/
 - JWT 身份驗證
 - 結構化 Log（loguru + ContextVar，每筆 log 自動帶入 request_id / user）
 - IP 限流（SlowAPI，防止惡意請求） 
+
+## 本地啟動前準備
+
+### 🔑 準備 Gemini API Key
+
+本專案使用 Google Gemini 作為LLM 及 Embedding 模型。在啟動專案前，請先準備好您的 API Key：
+
+1. 前往 [Google AI Studio](https://aistudio.google.com/app/apikey) 建立免費的 API Key。
+2. 如果您不熟悉申請流程，可以參考這篇[詳細圖文教學](https://kuwaai.org/zh-Hant/blog/apply-gemini)。
+3. 申請完成後，請將金鑰填入 `.env.example`裡面的 `GEMINI_API_KEY` 欄位。
+
+## 本地啟動
+
+```text
+git clone https://github.com/jasonyeh-dev/enterprise-knowledge-agent-backend.git
+cd enterprise-knowledge-agent-backend
+cp .env.example .env    # 填入 Gemini API Key 等設定
+docker-compose up -d    # 自動啟動 DB、執行 migration、啟動 API
+預設管理者帳號&密碼:demo1234
+```
+
+# API 文件
+http://localhost:8080/docs
+
+
+

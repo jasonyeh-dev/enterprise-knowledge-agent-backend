@@ -1,0 +1,49 @@
+services:
+  db:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      retries: 5
+
+  migrate:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    command: alembic upgrade head
+    restart: "no"
+
+  seed:
+    image: pgvector/pgvector:pg15  # 直接用 db 的 image，內建 psql
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./Demo_data.sql:/Demo_data.sql
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    command: >
+      psql -h db -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f /Demo_data.sql
+    restart: "no"
+
+  app:
+    build: .
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:

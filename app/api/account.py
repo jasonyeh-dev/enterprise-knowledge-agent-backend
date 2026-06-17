@@ -13,7 +13,9 @@ router = APIRouter(
     tags=["user related"]
 )
 
-@router.post("", response_model=AccountResponse,  dependencies=[Depends(get_current_user_id)])
+@router.post("", response_model=AccountResponse,  
+             dependencies=[Depends(get_current_user_id)]
+             )
 async def create_user_api(
     request: AccountCreateRequest, 
     db: AsyncSession = Depends(get_db)

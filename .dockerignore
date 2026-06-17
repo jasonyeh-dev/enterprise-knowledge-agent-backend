@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# 環境變數
+.env
+.env.*
+
+# Python 快取
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+
+# Log 檔
+logs/
+
+# 本地開發用
+.vscode
+.idea
+
+# Docker 自己
+Dockerfile
+docker-compose.yml
+.dockerignore
