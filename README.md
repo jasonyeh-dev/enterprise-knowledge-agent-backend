@@ -133,7 +133,7 @@ This project uses Google Gemini for both the LLM and Embedding models. Please pr
 git clone https://github.com/jasonyeh-dev/enterprise-knowledge-agent-backend.git
 cd enterprise-knowledge-agent-backend
 cp .env.example .env    # Fill in your Gemini API Key
-docker compose up -d    # Auto-starts the DB, runs migrations, import default data, and boots the backend service
+docker compose up -d    # Auto-start the DB, run migrations, import default data, and boot the backend service
 ```
 
 Default Admin Account / Password: `demo1234` / `demo1234`
