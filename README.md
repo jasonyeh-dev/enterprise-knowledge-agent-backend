@@ -126,7 +126,6 @@ This project uses Google Gemini for both the LLM and Embedding models. Please pr
 2. If you are unfamiliar with the application process, you can refer to this [step-by-step guide](https://sfailabs.com/guides/how-to-get-google-gemini-api-key).
 3. Once you have obtained the key, add it to the `.env` file in the following setup step.
 
-
 ## 🚀 Quick Start (Local)
 
 ```bash
