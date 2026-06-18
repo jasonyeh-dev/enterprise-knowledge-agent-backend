@@ -1,4 +1,6 @@
-# 企業內部知識庫 RAG 系統
+# Enterprise Knowledge Base RAG System
+
+*[Read this in Traditional Chinese (繁體中文版本請點此)](README.zh-TW.md)*
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue.svg?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.116.1-009688.svg?logo=fastapi&logoColor=white)
@@ -7,10 +9,10 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Lint Check](https://github.com/108618026/Enterprise-Knowledge-Agent-backend/actions/workflows/lint.yml/badge.svg)
 
-基於 FastAPI + pgvector + Gemini 建構的企業內部文件問答系統，
-支援 PDF 上傳、語意向量檢索與 AI 生成回答。
+A document Q&A system designed for enterprise internal knowledge bases built with FastAPI, pgvector, and Gemini. It supports PDF uploads, semantic vector retrieval, and AI-generated responses.
 
-## 技術架構
+
+## System Architecture
 
 ```text
 Client
@@ -66,65 +68,84 @@ Client
    • Answer Generation
 ```
 
-## 專案結構
+## Project Structure
 
 ```text
 app/
-├── main.py             # 應用程式進入點：初始化 FastAPI 實例、掛載全域 Lifespan、SlowAPI限流
-├── core/               # 核心基礎：全域環境變數、JWT 簽發、Logger 配置、上下文管理、資料庫引擎
-├── api/                # 路由層：定義端點、解析 Request / Response 格式、簽章與效期驗證
-├── services/           # 商業邏輯層：核心業務管線，RAG 檢索、文件流程與背景任務
-├── crud/               # 資料存取層：封裝SQL語法、執行資料庫交易
-└── models/             # 資料模型定義
-    ├── models.py       # SQLAlchemy ORM 模型：對應 PostgreSQL 實體資料表、定義欄位、關聯屬性與向量欄位
-    └── schemas.py      # Pydantic 驗證結構：定義 API 交互的數據契約
+├── main.py             # Application entry point: FastAPI instance initialization, global Lifespan, and SlowAPI rate limiting.
+├── core/               # Core foundations: Environment variables, JWT issuance, Logger configuration, context management, and database engine.
+├── api/                # Routing layer: Defines endpoints, parses Request/Response formats, validates signatures and token expiration.
+├── services/           # Business logic layer: Core pipelines, RAG retrieval, document workflows, and background tasks.
+├── crud/               # Data access layer: Encapsulates SQL queries and executes database transactions.
+└── models/             # Data models definition.
+    ├── models.py       # SQLAlchemy ORM models: Maps to PostgreSQL tables, defines columns, relationships, and vector fields.
+    └── schemas.py      # Pydantic validation schemas: Defines data contracts for API interactions.
 ```
 
+## Key Features
 
-## 主要功能
+- PDF upload and asynchronous embedding processing (BackgroundTasks).
+- Semantic vector search (pgvector cosine distance).
+- RAG Q&A generation (Gemini API).
+- JWT Authentication.
+- Structured Logging (loguru + ContextVar): automatically injects request_id, 
+  client_ip, and user_account into every log entry, with correct context propagation 
+  across async dependencies.
+- IP Rate Limiting (SlowAPI to prevent malicious requests).
 
-- PDF 上傳與非同步 embedding 處理（BackgroundTasks）
-- 語意向量搜尋（pgvector cosine distance）
-- RAG 問答（Gemini API）
-- JWT 身份驗證
-- 結構化 Log（loguru + ContextVar，搭配 async dependency 確保 context 正確傳遞，每筆 log 自動帶入 request_id / client_ip / user_account）
-- IP 限流（SlowAPI，防止惡意請求） 
+## 🎥 Demonstration
 
-## 🛠️ 先決條件 (Prerequisites)
-在開始之前，請確保您的開發環境已安裝以下工具：
+Watch how the Enterprise-Knowledge-Agent processes documents and answers queries in real-time. 
+*(Note: The current demonstration and default system prompts are optimized for Traditional Chinese. However, the core RAG pipeline is language-agnostic and can be easily adapted for English documents by adjusting the prompt templates.)*
+
+The demo below covers the full pipeline: login → upload a sample HR policy PDF → 
+ask a question only answerable from that document → receive a grounded response with citations.
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/ed10e144-55b6-4f62-8cc9-12670118dff8" width="85%" autoplay loop muted playsinline></video>
+</p>
+
+### Workflow Highlight:
+1. **Authentication:** Secure user login and validation.
+2. **Document Upload:** Uploading a PDF for system ingestion and vectorization.
+3. **Querying:** Asking natural language questions based on the document context.
+4. **Response Generation:** The agent retrieves relevant data and generates an accurate response.
+
+---
+
+## 🛠️ Prerequisites
+Before you begin, ensure you have the following installed on your development environment:
 * [Git](https://git-scm.com/)
-* [Docker](https://www.docker.com/) & Docker Compose
+* [Docker](https://www.docker.com/)
 
-## 🔑 準備 Gemini API Key
+## 🔑 Gemini API Key Setup
 
-本專案使用 Google Gemini 作為 LLM 及 Embedding 模型。啟動前請先備妥 API Key：
+This project uses Google Gemini for both the LLM and Embedding models. Please prepare your API Key before starting:
 
-1. 前往 [Google AI Studio](https://aistudio.google.com/app/apikey) 建立免費的 API Key。
-2. 如果您不熟悉申請流程，可以參考這篇[詳細圖文教學](https://kuwaai.org/zh-Hant/blog/apply-gemini)。
-3. 取得金鑰後，稍後將其填入專案的 `.env` 檔案中。
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey) to create a free API Key.
+2. If you are unfamiliar with the application process, you can refer to this [step-by-step guide](https://sfailabs.com/guides/how-to-get-google-gemini-api-key).
+3. Once you have obtained the key, add it to the `.env` file in the following setup step.
 
-## 🚀 本地快速啟動
+
+## 🚀 Quick Start (Local)
 
 ```bash
 git clone https://github.com/jasonyeh-dev/enterprise-knowledge-agent-backend.git
 cd enterprise-knowledge-agent-backend
-cp .env.example .env    # 填入 Gemini API Key 等設定
-docker compose up -d    # 自動啟動 DB、執行 migration、啟動後端服務
+cp .env.example .env    # Fill in your Gemini API Key
+docker compose up -d    # Auto-starts the DB, runs migrations, import default data, and boots the backend service
 ```
 
-預設管理者帳號／密碼：`demo1234` / `demo1234`
+Default Admin Account / Password: `demo1234` / `demo1234`
 
+## 📖 API Documentation
 
-
-## 📖 API 文件
-
-服務啟動完成後，請打開瀏覽器前往以下網址查看並測試 API：
+Once the service is running successfully, open your browser and visit the following URL to view and test the API:
 👉 http://localhost:8080/docs
 
 
-## 🧩 技術挑戰
 
-開發過程中處理過的幾個關鍵問題：
-- **ContextVar 跨 async/sync context 遺失**：FastAPI 同步 route handler 會被丟進
-  threadpool 執行，導致 dependency 裡 set 的 ContextVar 在 service layer 讀不到，
-  改為 async dependency 確保值寫入正確的 context
+## 🧩 Technical Challenges
+
+A key issue resolved during the development process:
+- **ContextVar loss across async/sync contexts**: FastAPI synchronous route handlers are executed in a threadpool. This causes ContextVar values set in dependencies to become inaccessible in the service layer. The solution was to refactor them into async dependencies, ensuring the values are written to the correct context and successfully passed down the execution stack.
