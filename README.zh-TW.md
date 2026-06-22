@@ -97,9 +97,7 @@ app/
 
 下方的展示涵蓋了完整流程：登入 → 上傳人事規章 PDF 範例 → 針對該文件提問 → 取得具備事實根據與引用來源的回答。
 
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/ed10e144-55b6-4f62-8cc9-12670118dff8" width="85%" autoplay loop muted playsinline></video>
-</p>
+[![API Demo](https://img.youtube.com/vi/1GMBpakRmII/maxresdefault.jpg)](https://www.youtube.com/watch?v=1GMBpakRmII)
 
 ### 流程亮點：
 1. **身分驗證：** 安全的使用者登入與驗證。
