@@ -14,7 +14,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "models/gemini-embedding-001"
     CHAT_MODEL_NAME: str = "gemini-3.1-flash-lite"
     OUTPUT_DEMENSIONALITY: int = 768
+
     ENABLE_MOCK_AI: bool = False
+    ENABLE_RATE_LIMIT: bool = True
     
     #others
     UPLOAD_DIR: str = "upload"

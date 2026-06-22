@@ -6,7 +6,11 @@ from slowapi.util import get_remote_address
 from app.core.config import settings
 
 # rate limiter using IP
-limiter = Limiter(key_func=get_remote_address, default_limits=["30/minute"])
+limiter = Limiter(
+    key_func=get_remote_address, 
+    default_limits=["30/minute"],
+    enabled=getattr(settings, "ENABLE_RATE_LIMIT", True),
+    )
 
 def get_password_hash(password: str) -> str:
     # 1. bcrypt 要求輸入必須是 bytes 格式
