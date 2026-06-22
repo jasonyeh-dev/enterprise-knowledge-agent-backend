@@ -101,9 +101,7 @@ Watch how the Enterprise-Knowledge-Agent processes documents and answers queries
 The demo below covers the full pipeline: login → upload a sample HR policy PDF → 
 ask a question only answerable from that document → receive a grounded response with citations.
 
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/ed10e144-55b6-4f62-8cc9-12670118dff8" width="85%" autoplay loop muted playsinline></video>
-</p>
+[![API Demo](https://img.youtube.com/vi/1GMBpakRmII/maxresdefault.jpg)](https://www.youtube.com/watch?v=1GMBpakRmII)
 
 ### Workflow Highlight:
 1. **Authentication:** Secure user login and validation.
