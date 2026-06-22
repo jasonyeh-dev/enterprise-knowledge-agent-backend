@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "models/gemini-embedding-001"
     CHAT_MODEL_NAME: str = "gemini-3.1-flash-lite"
     OUTPUT_DEMENSIONALITY: int = 768
+    ENABLE_MOCK_AI: bool = False
     
     #others
     UPLOAD_DIR: str = "upload"
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
     #run on local or GCP
     ENVIRONMENT: str= "local"
     
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8",extra="ignore")
 
 
 

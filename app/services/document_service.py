@@ -12,6 +12,8 @@ from app.core.database import SessionLocal
 from app.models.schemas import DocumentStatus
 from app.core.config import settings
 import os
+import time
+
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
@@ -184,13 +186,20 @@ class QAService:
         # ==========================================
         # Step 1. 將自然語言轉換成向量 (Embedding)
         # ==========================================
-        embed_result = genai.embed_content(
-            model=self.embedding_model_name,
-            content=user_query,
-            task_type="retrieval_query", # 標示這是一個用來檢索的查詢
-            output_dimensionality=settings.OUTPUT_DEMENSIONALITY
-        )
-        query_vector = embed_result['embedding']
+        if settings.ENABLE_MOCK_AI:
+            # 💡 模擬 Embedding 的網路延遲 0.5 秒
+            time.sleep(0.5)
+            # 產生一個與設定檔維度相符的假向量，確保 Step 2 的資料庫查詢不會報錯
+            # 假設維度是 768，產生一個全為 0.0 的 list
+            query_vector = [0.0] * getattr(settings, "OUTPUT_DEMENSIONALITY", 768)
+        else:
+            embed_result = genai.embed_content(
+                model=self.embedding_model_name,
+                content=user_query,
+                task_type="retrieval_query", 
+                output_dimensionality=settings.OUTPUT_DEMENSIONALITY
+            )
+            query_vector = embed_result['embedding']
 
         # ==========================================
         # Step 2. 向量檢索 (呼叫 Repository)
@@ -200,25 +209,32 @@ class QAService:
             question_embedding=query_vector
         )
         
-        # 如果資料庫是空的，或者沒撈到資料的防呆
-        if not similar_chunks:
-            return {
-                "answer": "目前知識庫中尚無相關文件可以回答您的問題。",
-                "sources": []
-            }
-        
         sources_metadata = []
         context_texts = []
 
-        for chunk, distance in similar_chunks:
-            # 組合給 Gemini 看的文本
-            context_texts.append(chunk.content)
-            
-            sources_metadata.append({
-                "filename": chunk.document.filename, 
-                "chunk_content": chunk.content,
-                "similarity_score": round(1 - distance, 4) # 轉換成相似度百分比
-            })
+        if similar_chunks:
+            for chunk, distance in similar_chunks:
+                context_texts.append(chunk.content)
+                sources_metadata.append({
+                    "filename": chunk.document.filename, 
+                    "chunk_content": chunk.content,
+                    "similarity_score": round(1 - distance, 4)
+                })
+        else:
+            # 💡 防呆機制：在 Mock 模式下，全 0 向量可能在資料庫撈不到東西
+            # 為了讓壓測流程能順利走到 Step 3，如果沒撈到東西就主動塞入一筆假文本
+            if settings.ENABLE_MOCK_AI:
+                context_texts.append("這是為了壓力測試而產生的模擬知識庫文本內容。")
+                sources_metadata.append({
+                    "filename": "mock_stress_test.pdf",
+                    "chunk_content": "這是為了壓力測試而產生的模擬知識庫文本內容。",
+                    "similarity_score": 0.9527
+                })
+            else:
+                return {
+                    "answer": "目前知識庫中尚無相關文件可以回答您的問題。",
+                    "sources": []
+                }
 
 
         # 將撈出來的文本片段組合成一個大字串
@@ -228,27 +244,34 @@ class QAService:
         # Step 3. 組合 Prompt 並交給 LLM 總結
         # ==========================================
         # 這是防幻覺 (Hallucination) 最關鍵的 System Prompt
-        prompt = f"""
-        你是一位專業且嚴謹的企業內部知識庫助理。
-        請「僅能」根據下方【參考資料】提供的內容，來回答使用者的【問題】。
+        if settings.ENABLE_MOCK_AI:
+            # 💡 模擬 LLM Inference 的思考延遲 3.0 秒
+            time.sleep(3.0)
+            response_text = f"[Mock AI] 這是壓力測試模擬的回答。成功觸發同步阻塞，總計模擬延遲 3.5 秒。收到的問題是：{user_query}"
         
-        回答規則：
-        1. 語氣請保持專業、友善。
-        2. 如果【參考資料】中沒有提到能回答該問題的資訊，請誠實回答：「很抱歉，目前的知識庫中沒有關於此問題的規定。」，絕對不可以自己捏造答案。
-        3. 回答請盡量精簡扼要，重點可以使用條列式。
+        else:
+            prompt = f"""
+            你是一位專業且嚴謹的企業內部知識庫助理。
+            請「僅能」根據下方【參考資料】提供的內容，來回答使用者的【問題】。
+            
+            回答規則：
+            1. 語氣請保持專業、友善。
+            2. 如果【參考資料】中沒有提到能回答該問題的資訊，請誠實回答：「很抱歉，目前的知識庫中沒有關於此問題的規定。」，絕對不可以自己捏造答案。
+            3. 回答請盡量精簡扼要，重點可以使用條列式。
 
-        【參考資料】:
-        {context_text}
+            【參考資料】:
+            {context_text}
 
-        【問題】:
-        {user_query}
-        """
+            【問題】:
+            {user_query}
+            """
 
-        # 呼叫 Gemini產生解答
-        response = self.chat_model.generate_content(prompt)
+            # 呼叫 Gemini產生解答
+            response = self.chat_model.generate_content(prompt)
+            response_text = response.text
         
         return {
-                "answer": response.text,
+                "answer": response_text,
                 "sources": sources_metadata
             }
 
